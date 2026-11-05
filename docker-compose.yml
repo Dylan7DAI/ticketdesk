@@ -1,0 +1,42 @@
+services:
+  db:
+    image: postgres:16
+    container_name: ticketdesk-db
+    environment:
+      POSTGRES_USER: ticketdesk
+      POSTGRES_PASSWORD: ticketdesk
+      POSTGRES_DB: ticketdesk
+    ports:
+      # 宿主机用 5433，避免和本机已安装的 PostgreSQL（默认 5432）冲突
+      - "5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      # 首次初始化数据卷时执行，用来创建测试库 ticketdesk_test
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      # 必须走 TCP（-h 127.0.0.1）。初始化阶段的临时服务只监听 unix socket，
+      # 默认的 pg_isready 会在测试库创建完成之前就报告就绪。
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U ticketdesk -d ticketdesk"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  # 在 Linux 容器里跑 go test -race（Windows 上默认没有 gcc，-race 需要 cgo）。
+  # 平时不启动：npm run test:race 会通过 --profile test 拉起它。
+  gotest:
+    image: golang:1.22
+    profiles: ["test"]
+    working_dir: /src
+    volumes:
+      - ./backend:/src
+      - gomodcache:/go/pkg/mod
+    environment:
+      # 系统环境变量优先于 .env，所以容器内用服务名 db 和容器内端口 5432
+      TEST_DATABASE_URL: postgres://ticketdesk:ticketdesk@db:5432/ticketdesk_test?sslmode=disable
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  pgdata:
+  gomodcache:

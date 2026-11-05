@@ -1,0 +1,32 @@
+{
+  "name": "ticketdesk",
+  "private": true,
+  "version": "0.0.0",
+  "description": "客服工单协作平台：任务入口。所有命令在 Windows、macOS、Linux 上相同。",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "setup": "node scripts/setup-env.mjs && npm install && npm --prefix frontend install && go -C backend mod download",
+    "build": "go -C backend build ./... && npm --prefix frontend run build",
+    "db:up": "docker-compose up -d --wait db",
+    "db:down": "docker-compose down",
+    "db:reset": "docker-compose down -v && docker-compose up -d --wait db",
+    "db:psql": "docker-compose exec db psql -U ticketdesk -d ticketdesk",
+    "migrate": "go -C backend run ./cmd/server -migrate up",
+    "migrate:down": "go -C backend run ./cmd/server -migrate down",
+    "seed:reset": "go -C backend run ./cmd/server -migrate reset",
+    "dev:api": "node scripts/dev-api.mjs",
+    "dev:web": "npm --prefix frontend run dev",
+    "dev": "npm run db:up && npm run migrate && concurrently -k -n api,web \"npm:dev:api\" \"npm:dev:web\"",
+    "dev:local": "npm run migrate && concurrently -k -n api,web \"npm:dev:api\" \"npm:dev:web\"",
+    "test": "go -C backend test ./...",
+    "test:integration": "go -C backend test -tags integration -p 1 -count=1 ./...",
+    "test:race": "docker-compose --profile test run --rm gotest go test -race -tags integration -p 1 -count=1 ./...",
+    "check": "go -C backend build ./... && go -C backend vet ./... && node scripts/check-fmt.mjs && npm run test && npm --prefix frontend run typecheck",
+    "smoke": "node scripts/smoke.mjs"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  }
+}
